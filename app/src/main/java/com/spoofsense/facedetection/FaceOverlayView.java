@@ -18,7 +18,7 @@ public class FaceOverlayView extends View {
 
     private void init() {
         paint = new Paint();
-        paint.setColor(Color.WHITE);
+        paint.setColor(Color.YELLOW);
         paint.setStyle(Paint.Style.STROKE);
         paint.setStrokeWidth(5);
     }

@@ -1,6 +1,7 @@
 package com.spoofsense.facedetection;
 
 import android.annotation.SuppressLint;
+import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -16,6 +17,7 @@ import android.util.Size;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -70,8 +72,10 @@ public class MainActivity extends AppCompatActivity {
     private Button captureButton;
     private String currentPhotoPath; // Store the path of the captured image
     private ImageView capturedImageView;
+    private ProgressBar progressBar;
     private boolean isImageCaptured = false; // Flag to prevent multiple captures
     String base64String;
+    private boolean isReal = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -83,9 +87,11 @@ public class MainActivity extends AppCompatActivity {
         faceOverlayView = findViewById(R.id.faceOverlayView);
         feedbackTextView = findViewById(R.id.feedbackTextView);
         capturedImageView = findViewById(R.id.capturedImageView);
+        progressBar = findViewById(R.id.progressBar);
 
         // Hide the capture button initially
         captureButton.setVisibility(View.GONE);
+        progressBar.setVisibility(View.GONE);
 
 
         // Initialize ML Kit Face Detection
@@ -280,6 +286,8 @@ public class MainActivity extends AppCompatActivity {
 
     // Send POST request
     private void sendPostRequest(String base64String) {
+
+        progressBar.setVisibility(View.VISIBLE);
         // Create JSON object
         JSONObject jsonObject = prepareJsonData(base64String);
 
@@ -299,6 +307,8 @@ public class MainActivity extends AppCompatActivity {
         Request request = new Request.Builder()
                 .url("https://690xidqbzi.execute-api.ap-south-1.amazonaws.com/dev/antispoofing")
                 .post(requestBody)
+                .addHeader("x-api-key","0UpOY9TMUq7iE7HvEGmKJaQ0dkkzQ6Er4K1Rm363")
+                .addHeader("Content-Type", "application/json")
                 .build();
 
         // Send the request asynchronously
@@ -306,6 +316,10 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 e.printStackTrace();
+                runOnUiThread(() -> {
+                    progressBar.setVisibility(View.GONE);
+                    Toast.makeText(MainActivity.this, "Request failed", Toast.LENGTH_SHORT).show();
+                });
                 // Handle request failure
             }
 
@@ -313,12 +327,40 @@ public class MainActivity extends AppCompatActivity {
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
                 if (response.isSuccessful()) {
                     String responseBody = response.body() != null ? response.body().string() : "";
-                    // Handle successful response
+
+                    try {
+                        JSONObject jsonObject = new JSONObject(responseBody);
+
+                        // Extract the "model_output" value
+                        String modelOutput = jsonObject.getString("model_output");
+                        Log.d("POST_SUCCESS", "Model Output: " + modelOutput);
+                        if (modelOutput.equalsIgnoreCase("real")){
+                            isReal = true;
+                        }
+                        else {
+                            isReal = false;
+                        }
+
+                        Intent intent = new Intent(MainActivity.this, ResultActivity.class);
+                        intent.putExtra("jsonResponse", responseBody);
+                        intent.putExtra("IS_REAL",isReal);
+                        startActivity(intent);
+                        // Handle successful response
                     Log.d("POST_SUCCESS", responseBody);
+                    runOnUiThread(() -> {
+                        Toast.makeText(MainActivity.this, "Request POST_SUCCESS", Toast.LENGTH_SHORT).show();
+                        progressBar.setVisibility(View.GONE);
+                    });
+                    } catch (JSONException e) {
+                        throw new RuntimeException(e);
+                    }
                 } else {
                     // Handle response error
                     Log.e("POST_ERROR", "Response error: " + response.message());
-                }
+                    runOnUiThread(() -> {
+                        Toast.makeText(MainActivity.this, "Request POST_ERROR", Toast.LENGTH_SHORT).show();
+                        progressBar.setVisibility(View.GONE);
+                    });                }
             }
         });
 

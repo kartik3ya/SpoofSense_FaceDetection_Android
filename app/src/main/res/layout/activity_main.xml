@@ -23,18 +23,19 @@
         android:layout_gravity="center" />
 
     <!-- Feedback Text -->
-    <TextView
+    <androidx.appcompat.widget.AppCompatTextView
         android:id="@+id/feedbackTextView"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:textColor="@android:color/white"
         android:textSize="18sp"
-        app:layout_constraintBottom_toBottomOf="parent"
+        android:fontFamily="@font/montserrat_semibold"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        android:layout_marginBottom="70dp"
+        app:layout_constraintBottom_toTopOf="@+id/captureButton" />
 
-    <ImageView
+    <androidx.appcompat.widget.AppCompatImageView
         android:id="@+id/capturedImageView"
         android:layout_width="50dp"
         android:layout_height="50dp"
@@ -44,7 +45,7 @@
         app:layout_constraintTop_toBottomOf="@+id/feedbackTextView"
         android:visibility="gone"/>
 
-    <Button
+    <androidx.appcompat.widget.AppCompatButton
         android:id="@+id/captureButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
@@ -52,9 +53,22 @@
         android:layout_marginBottom="32dp"
         android:onClick="onCaptureButtonClick"
         android:text="Capture"
+        android:padding="15dp"
+        android:background="@drawable/square_button_bg"
+        android:visibility="visible"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toBottomOf="parent"/>
+
+    <ProgressBar
+        android:id="@+id/progressBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:indeterminate="true"
         android:visibility="gone"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintBottom_toBottomOf="parent"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
