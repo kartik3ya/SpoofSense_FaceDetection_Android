@@ -2,6 +2,7 @@ package com.spoofsense.facedetection;
 
 import android.annotation.SuppressLint;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -20,7 +21,7 @@ import android.widget.ImageView;
 import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
-
+import android.Manifest;
 import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
 import androidx.appcompat.app.AppCompatActivity;
@@ -34,6 +35,7 @@ import androidx.camera.core.ImageProxy;
 import androidx.camera.core.Preview;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
+import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.lifecycle.LifecycleOwner;
 
@@ -76,6 +78,7 @@ public class MainActivity extends AppCompatActivity {
     private boolean isImageCaptured = false; // Flag to prevent multiple captures
     String base64String;
     private boolean isReal = false;
+    private static final int CAMERA_PERMISSION_REQUEST_CODE = 100;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,8 +104,27 @@ public class MainActivity extends AppCompatActivity {
                 .build();
         faceDetector = FaceDetection.getClient(options);
 
-        // Start front camera
-        startFrontCamera();
+        checkCameraPermission();
+    }
+
+    // Check if camera permission is granted
+    private void checkCameraPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
+                != PackageManager.PERMISSION_GRANTED) {
+            // If permission is not granted, request the permission
+            requestCameraPermission();
+        } else {
+            // Permission already granted, open the camera
+            // Start front camera
+            startFrontCamera();
+        }
+    }
+
+    // Request camera permission
+    private void requestCameraPermission() {
+        ActivityCompat.requestPermissions(this,
+                new String[]{Manifest.permission.CAMERA},
+                CAMERA_PERMISSION_REQUEST_CODE);
     }
 
     @OptIn(markerClass = ExperimentalGetImage.class)
@@ -364,5 +386,22 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+    }
+
+    // Handle the result of the permission request
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == CAMERA_PERMISSION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permission granted, open the camera
+                // Start front camera
+                startFrontCamera();
+            } else {
+                // Permission denied
+                Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 }
