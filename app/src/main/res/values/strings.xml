@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">SpoofSense App</string>
+    <string name="click_a_selfie">Click a Selfie</string>
 </resources>

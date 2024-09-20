@@ -40,14 +40,12 @@
         implementation(libs.camera.lifecycle)
         implementation(libs.camera.camera2)
         implementation(libs.mlkit.face.detection)
-        implementation(libs.camera.video)
+//        implementation(libs.camera.video)
         implementation(libs.camera.view)
-        implementation(libs.camera.mlkit.vision)
-        implementation(libs.camera.extensions)
+//        implementation(libs.camera.mlkit.vision)
+//        implementation(libs.camera.extensions)
         implementation(libs.okhttp)
         testImplementation(libs.junit)
         androidTestImplementation(libs.ext.junit)
         androidTestImplementation(libs.espresso.core)
-
-
     }
