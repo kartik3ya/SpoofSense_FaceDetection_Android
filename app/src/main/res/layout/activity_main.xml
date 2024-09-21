@@ -58,6 +58,7 @@
             android:background="@drawable/square_button_bg"
             android:onClick="onCaptureButtonClick"
             android:padding="15dp"
+            android:textAllCaps="false"
             android:text="@string/click_a_selfie"
             android:visibility="visible"
             app:layout_constraintBottom_toBottomOf="parent"
@@ -80,6 +81,7 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
+            android:layout_marginBottom="100dp"
             app:lottie_autoPlay="true"
             app:lottie_loop="true"
             app:lottie_rawRes="@raw/circle_animation" />

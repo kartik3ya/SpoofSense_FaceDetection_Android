@@ -357,7 +357,7 @@ public class MainActivity extends AppCompatActivity {
                         startActivity(intent);
                         // Handle successful response
                     runOnUiThread(() -> {
-                        Toast.makeText(MainActivity.this, "Request POST_SUCCESS", Toast.LENGTH_SHORT).show();
+//                        Toast.makeText(MainActivity.this, "Request POST_SUCCESS", Toast.LENGTH_SHORT).show();
 //                        waitLayout.setVisibility(View.GONE);
                     });
                     } catch (JSONException e) {
@@ -367,7 +367,7 @@ public class MainActivity extends AppCompatActivity {
                     // Handle response error
                     Log.e("POST_ERROR", "Response error: " + response.message());
                     runOnUiThread(() -> {
-                        Toast.makeText(MainActivity.this, "Request POST_ERROR", Toast.LENGTH_SHORT).show();
+//                        Toast.makeText(MainActivity.this, "Request POST_ERROR", Toast.LENGTH_SHORT).show();
                         waitLayout.setVisibility(View.GONE);
                     });
                 }
