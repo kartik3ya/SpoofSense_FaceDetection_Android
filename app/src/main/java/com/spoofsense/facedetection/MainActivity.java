@@ -193,7 +193,10 @@ public class MainActivity extends AppCompatActivity {
 
         // Define thresholds for centering the face in the oval
         int ovalCenterX = imageWidth / 2;
-        int ovalCenterY = imageHeight / 2;
+//        int ovalCenterY = imageHeight / 2;
+        // Move the ovalCenterY slightly towards the top (e.g., 20% higher)
+        int ovalCenterY = (int) (imageHeight * 0.35);  // 35% from the top instead of the middle (50%)
+
         int horizontalMargin = (int) (imageWidth * 0.1); // Allow a 10% margin for centering
         int verticalMargin = (int) (imageHeight * 0.1);
 
@@ -290,6 +293,12 @@ public class MainActivity extends AppCompatActivity {
         return jsonObject;
     }
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        waitLayout.setVisibility(View.GONE);
+    }
+
     // Send POST request
     private void sendPostRequest(String base64String) {
 
@@ -349,7 +358,7 @@ public class MainActivity extends AppCompatActivity {
                         // Handle successful response
                     runOnUiThread(() -> {
                         Toast.makeText(MainActivity.this, "Request POST_SUCCESS", Toast.LENGTH_SHORT).show();
-                        waitLayout.setVisibility(View.GONE);
+//                        waitLayout.setVisibility(View.GONE);
                     });
                     } catch (JSONException e) {
                         throw new RuntimeException(e);
