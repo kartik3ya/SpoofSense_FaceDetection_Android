@@ -1,6 +1,7 @@
 package com.spoofsense.facedetection;
 
 import android.annotation.SuppressLint;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -8,6 +9,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Rect;
 import android.media.Image;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.os.Vibrator;
 import android.util.Base64;
 import android.util.Log;
@@ -20,6 +22,7 @@ import android.widget.Toast;
 import android.Manifest;
 import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ExperimentalGetImage;
@@ -39,6 +42,7 @@ import com.google.mlkit.vision.face.Face;
 import com.google.mlkit.vision.face.FaceDetection;
 import com.google.mlkit.vision.face.FaceDetector;
 import com.google.mlkit.vision.face.FaceDetectorOptions;
+import com.spoofsense.facedetection.utils.AppPreferences;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -46,6 +50,7 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeUnit;
 
 import okhttp3.Call;
 import okhttp3.Callback;
@@ -62,17 +67,19 @@ public class MainActivity extends AppCompatActivity {
     private static final String API_URL = "https://690xidqbzi.execute-api.ap-south-1.amazonaws.com/dev/antispoofing";
     private static final String API_KEY = "0UpOY9TMUq7iE7HvEGmKJaQ0dkkzQ6Er4K1Rm363";
     private static final String TAG = "MainActivity";
+    boolean isFirstRun = true;
 
     private TextView feedbackTextView;
     private FaceDetector faceDetector;
     private PreviewView previewView;
     private ImageCapture imageCapture;
-    private Button captureButton;
+    private Button captureButton, btn_check_liveness;
     private ImageView capturedImageView;
-    private ConstraintLayout waitLayout;
+    private ConstraintLayout waitLayout, guidelineLayout, mainLayout;
     String base64String;
     private boolean isReal = false;
     private Vibrator vibrator;
+    private long mLastClickTime = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -81,14 +88,39 @@ public class MainActivity extends AppCompatActivity {
 
         vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
         captureButton = findViewById(R.id.captureButton);
+        btn_check_liveness = findViewById(R.id.btn_check_liveness);
         previewView = findViewById(R.id.previewView);
         feedbackTextView = findViewById(R.id.feedbackTextView);
         capturedImageView = findViewById(R.id.capturedImageView);
         waitLayout = findViewById(R.id.waitLayout);
+        mainLayout = findViewById(R.id.mainLayout);
+        guidelineLayout = findViewById(R.id.guidelineLayout);
+
+        AppPreferences.getInstance(getApplicationContext()).getBoolean("IS_FIRST_RUN", isFirstRun);
 
         // Hide the capture button initially
         captureButton.setVisibility(View.GONE);
         waitLayout.setVisibility(View.GONE);
+
+        if (isFirstRun){
+            guidelineLayout.setVisibility(View.VISIBLE);
+            mainLayout.setVisibility(View.GONE);
+        }
+        else{
+            mainLayout.setVisibility(View.VISIBLE);
+            guidelineLayout.setVisibility(View.GONE);
+        }
+
+        btn_check_liveness.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                isFirstRun = false;
+                AppPreferences.getInstance(MainActivity.this).put("IS_FIRST_RUN", isFirstRun);
+                guidelineLayout.setVisibility(View.GONE);
+                mainLayout.setVisibility(View.VISIBLE);
+
+            }
+        });
 
 
         // Initialize ML Kit Face Detection
@@ -223,6 +255,13 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void onCaptureButtonClick(View view) {
+
+        // mis-clicking prevention, using threshold of 1000 ms
+        if (SystemClock.elapsedRealtime() - mLastClickTime < 3000){
+            return;
+        }
+        mLastClickTime = SystemClock.elapsedRealtime();
+
         // Add vibration feedback
         if (vibrator != null) {
             long[] pattern = {0, 100}; // Wait 0 ms, vibrate for 100 ms
@@ -252,6 +291,7 @@ public class MainActivity extends AppCompatActivity {
                         // Convert to Base64
                         base64String = convertImageToBase64(imageData);
                         // Send the Base64 string via POST request
+                        Toast.makeText(MainActivity.this,"base64String:--- " + base64String.length(),Toast.LENGTH_LONG).show();
                         Log.d("TAG_FOR_BASE64STRING","base64String:---"+ base64String);
                         sendPostRequest(base64String);
                     });
@@ -310,7 +350,12 @@ public class MainActivity extends AppCompatActivity {
         String jsonString = jsonObject.toString();
 
         // Create OkHttpClient instance
-        OkHttpClient client = new OkHttpClient();
+        OkHttpClient.Builder builder = new OkHttpClient.Builder();
+        builder.connectTimeout(30, TimeUnit.MINUTES) // connect timeout
+                .writeTimeout(30, TimeUnit.MINUTES) // write timeout
+                .readTimeout(30, TimeUnit.MINUTES); // read timeout
+
+        OkHttpClient client = builder.build();
 
         // Create request body
         RequestBody requestBody = RequestBody.create(
@@ -347,26 +392,54 @@ public class MainActivity extends AppCompatActivity {
                         JSONObject jsonObject = new JSONObject(responseBody);
 
                         // Extract the "model_output" value
+//                        String modelOutput = jsonObject.getString("model_output");
+//                        Log.d("POST_SUCCESS", "Model Output: " + modelOutput);
+                        boolean success = jsonObject.optBoolean("success", false); // default value is false
                         String modelOutput = jsonObject.getString("model_output");
-                        Log.d("POST_SUCCESS", "Model Output: " + modelOutput);
-                        isReal = modelOutput.equalsIgnoreCase("real");
-
                         Intent intent = new Intent(MainActivity.this, ResultActivity.class);
-                        intent.putExtra("jsonResponse", responseBody);
-                        intent.putExtra("IS_REAL",isReal);
-                        startActivity(intent);
-                        // Handle successful response
-                    runOnUiThread(() -> {
-//                        Toast.makeText(MainActivity.this, "Request POST_SUCCESS", Toast.LENGTH_SHORT).show();
-//                        waitLayout.setVisibility(View.GONE);
-                    });
+                        if (success) {
+                            runOnUiThread(() -> {
+                                isReal = modelOutput.equalsIgnoreCase("real");
+                                intent.putExtra("jsonResponse", responseBody);
+                                intent.putExtra("IS_REAL",isReal);
+                                startActivity(intent);
+                            });
+                        } else {
+                            runOnUiThread(() -> {
+                                intent.putExtra("jsonResponse", "");
+                                intent.putExtra("IS_REAL",isReal);
+                                startActivity(intent);
+                            });
+
+//                            runOnUiThread(() -> Toast.makeText(MainActivity.this, "API error:---" + success, Toast.LENGTH_SHORT).show());
+                        }
                     } catch (JSONException e) {
-                        throw new RuntimeException(e);
+                        e.printStackTrace();
+                        runOnUiThread(() -> {
+                        new AlertDialog.Builder(MainActivity.this)
+                                .setTitle("Error")
+                                .setMessage("" + e.toString())
+
+                                // Specifying a listener allows you to take an action before dismissing the dialog.
+                                // The dialog is automatically dismissed when a dialog button is clicked.
+                                .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+                                    public void onClick(DialogInterface dialog, int which) {
+                                        // Continue with delete operation
+                                    }
+                                })
+
+                                // A null listener allows the button to dismiss the dialog and take no further action.
+                                .setNegativeButton(android.R.string.no, null)
+                                .setIcon(android.R.drawable.ic_dialog_alert)
+                                .show();
+                        });
+//                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Error parsing response:---" + e, Toast.LENGTH_SHORT).show());
                     }
                 } else {
                     // Handle response error
                     Log.e("POST_ERROR", "Response error: " + response.message());
                     runOnUiThread(() -> {
+                        Toast.makeText(MainActivity.this,"Request failed!!!",Toast.LENGTH_LONG).show();
 //                        Toast.makeText(MainActivity.this, "Request POST_ERROR", Toast.LENGTH_SHORT).show();
                         waitLayout.setVisibility(View.GONE);
                     });
@@ -390,5 +463,12 @@ public class MainActivity extends AppCompatActivity {
                 Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show();
             }
         }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        isFirstRun = true;
+        AppPreferences.getInstance().put("IS_FIRST_RUN", isFirstRun);
     }
 }
