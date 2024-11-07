@@ -287,12 +287,12 @@ public class MainActivity extends AppCompatActivity {
                     runOnUiThread(() -> {
                         capturedImageView.setImageBitmap(bitmap);
                         capturedImageView.setVisibility(View.VISIBLE);
-                        Toast.makeText(MainActivity.this,"Photo captured successfully!",Toast.LENGTH_LONG).show();
+//                        Toast.makeText(MainActivity.this,"Photo captured successfully!",Toast.LENGTH_LONG).show();
                         // Convert to Base64
                         base64String = convertImageToBase64(imageData);
                         // Send the Base64 string via POST request
-                        Toast.makeText(MainActivity.this,"base64String:--- " + base64String.length(),Toast.LENGTH_LONG).show();
-                        Log.d("TAG_FOR_BASE64STRING","base64String:---"+ base64String);
+//                        Toast.makeText(MainActivity.this,"base64String:--- " + base64String.length(),Toast.LENGTH_LONG).show();
+//                        Log.d("TAG_FOR_BASE64STRING","base64String:---"+ base64String);
                         sendPostRequest(base64String);
                     });
                 }
