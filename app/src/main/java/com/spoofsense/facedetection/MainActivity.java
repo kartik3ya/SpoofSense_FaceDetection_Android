@@ -8,6 +8,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Rect;
 import android.media.Image;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.SystemClock;
 import android.os.Vibrator;
@@ -48,6 +49,8 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -289,11 +292,16 @@ public class MainActivity extends AppCompatActivity {
                         capturedImageView.setVisibility(View.VISIBLE);
 //                        Toast.makeText(MainActivity.this,"Photo captured successfully!",Toast.LENGTH_LONG).show();
                         // Convert to Base64
-                        base64String = convertImageToBase64(imageData);
+//                        base64String = convertImageToBase64(imageData);
+                        base64String = compressBitmapToBase64(bitmap);
+
+                        File imageFile = saveBitmapToFile(bitmap);
+                        Uri imageUri = Uri.fromFile(imageFile);
+
                         // Send the Base64 string via POST request
 //                        Toast.makeText(MainActivity.this,"base64String:--- " + base64String.length(),Toast.LENGTH_LONG).show();
 //                        Log.d("TAG_FOR_BASE64STRING","base64String:---"+ base64String);
-                        sendPostRequest(base64String);
+                        sendPostRequest(base64String,imageUri.toString());
                     });
                 }
 
@@ -321,6 +329,25 @@ public class MainActivity extends AppCompatActivity {
         return Base64.encodeToString(imageData, Base64.DEFAULT);
     }
 
+    private String compressBitmapToBase64(Bitmap bitmap) {
+        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+        // Compress the bitmap to JPEG with 70% quality
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 70, byteArrayOutputStream);
+        byte[] compressedByteArray = byteArrayOutputStream.toByteArray();
+        return Base64.encodeToString(compressedByteArray, Base64.DEFAULT);
+    }
+
+    private File saveBitmapToFile(Bitmap bitmap) {
+        File file = new File(getExternalFilesDir(null), "captured_image.jpg");
+        try (FileOutputStream out = new FileOutputStream(file)) {
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 50, out);
+            out.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return file;
+    }
+
     // Prepare the JSON data
     private JSONObject prepareJsonData(String base64String) {
         JSONObject jsonObject = new JSONObject();
@@ -340,7 +367,7 @@ public class MainActivity extends AppCompatActivity {
     }
 
     // Send POST request
-    private void sendPostRequest(String base64String) {
+    private void sendPostRequest(String base64String, String imageFileString) {
 
         waitLayout.setVisibility(View.VISIBLE);
         // Create JSON object
@@ -402,12 +429,14 @@ public class MainActivity extends AppCompatActivity {
                                 isReal = modelOutput.equalsIgnoreCase("real");
                                 intent.putExtra("jsonResponse", responseBody);
                                 intent.putExtra("IS_REAL",isReal);
+                                intent.putExtra("imageUri", imageFileString.toString());
                                 startActivity(intent);
                             });
                         } else {
                             runOnUiThread(() -> {
                                 intent.putExtra("jsonResponse", "");
                                 intent.putExtra("IS_REAL",isReal);
+                                intent.putExtra("imageUri", imageFileString.toString());
                                 startActivity(intent);
                             });
 
