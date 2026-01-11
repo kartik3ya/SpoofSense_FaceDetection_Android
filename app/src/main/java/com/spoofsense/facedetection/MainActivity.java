@@ -64,8 +64,8 @@ import okhttp3.Response;
 public class MainActivity extends AppCompatActivity {
 
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 100;
-    private static final String API_URL = "https://690xidqbzi.execute-api.ap-south-1.amazonaws.com/dev/antispoofing";
-    private static final String API_KEY = "0UpOY9TMUq7iE7HvEGmKJaQ0dkkzQ6Er4K1Rm363";
+    private static final String API_URL = "https://z3jwq0rjyj.execute-api.ap-south-1.amazonaws.com/prod/robust";
+    private static final String API_KEY = "Gg7UIgXzG98XRbw8epG7C3NUVlhDfZHV5axdtoEh";
     private static final String TAG = "MainActivity";
     boolean isFirstRun = true;
 
