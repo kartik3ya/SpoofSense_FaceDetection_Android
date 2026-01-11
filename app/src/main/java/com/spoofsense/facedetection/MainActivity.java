@@ -2,6 +2,7 @@ package com.spoofsense.facedetection;
 
 import android.annotation.SuppressLint;
 import android.content.DialogInterface;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -20,7 +21,6 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.activity.EdgeToEdge;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
@@ -38,7 +38,6 @@ import androidx.core.content.ContextCompat;
 
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.mlkit.vision.common.InputImage;
-import com.google.mlkit.vision.face.Face;
 import com.google.mlkit.vision.face.FaceDetection;
 import com.google.mlkit.vision.face.FaceDetector;
 import com.google.mlkit.vision.face.FaceDetectorOptions;
@@ -80,27 +79,29 @@ public class MainActivity extends AppCompatActivity {
     private Button captureButton, btn_check_liveness;
     private ImageView capturedImageView;
     private ConstraintLayout waitLayout, guidelineLayout, mainLayout;
-
+    String base64String;
     private boolean isReal = false;
-    private String base64String = "";
+    private Vibrator vibrator;
+    private long mLastClickTime = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
 
+        vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
         captureButton = findViewById(R.id.captureButton);
         btn_check_liveness = findViewById(R.id.btn_check_liveness);
         previewView = findViewById(R.id.previewView);
         feedbackTextView = findViewById(R.id.feedbackTextView);
+
         tvApiResult = findViewById(R.id.tvApiResult);
         tvApiResult.setVisibility(View.GONE);
 
-        // Optional: tap the result box to see the raw JSON
+        // Optional: tap the result box to see raw JSON
         tvApiResult.setOnClickListener(v -> {
             if (lastApiResponse == null || lastApiResponse.isEmpty()) return;
-            new AlertDialog.Builder(MainActivity.this)
+            new androidx.appcompat.app.AlertDialog.Builder(MainActivity.this)
                     .setTitle("API Response")
                     .setMessage(lastApiResponse)
                     .setPositiveButton("OK", null)
@@ -118,17 +119,18 @@ public class MainActivity extends AppCompatActivity {
         captureButton.setVisibility(View.GONE);
         waitLayout.setVisibility(View.GONE);
 
-        if (isFirstRun) {
+        if (isFirstRun){
             guidelineLayout.setVisibility(View.VISIBLE);
             mainLayout.setVisibility(View.GONE);
-        } else {
+        }
+        else{
             mainLayout.setVisibility(View.VISIBLE);
             guidelineLayout.setVisibility(View.GONE);
         }
 
         btn_check_liveness.setOnClickListener(v -> {
             isFirstRun = false;
-            AppPreferences.getInstance().put("IS_FIRST_RUN", isFirstRun);
+            AppPreferences.getInstance().put("IS_FIRST_RUN",isFirstRun);
             mainLayout.setVisibility(View.VISIBLE);
             guidelineLayout.setVisibility(View.GONE);
         });
@@ -153,8 +155,6 @@ public class MainActivity extends AppCompatActivity {
         } else {
             startCamera();
         }
-
-        captureButton.setOnClickListener(v -> takePhoto());
     }
 
     private void startCamera() {
@@ -177,10 +177,7 @@ public class MainActivity extends AppCompatActivity {
                                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                                 .build();
 
-                imageAnalysis.setAnalyzer(getExecutor(), imageProxy -> {
-                    // Analyze frame for face detection
-                    analyzeImage(imageProxy);
-                });
+                imageAnalysis.setAnalyzer(getExecutor(), this::analyzeImage);
 
                 CameraSelector cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA;
 
@@ -194,53 +191,61 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void analyzeImage(ImageProxy imageProxy) {
-        @SuppressLint("UnsafeOptInUsageError") Image mediaImage = imageProxy.getImage();
+        @SuppressLint("UnsafeOptInUsageError")
+        Image mediaImage = imageProxy.getImage();
         if (mediaImage != null) {
             InputImage image = InputImage.fromMediaImage(mediaImage, imageProxy.getImageInfo().getRotationDegrees());
 
             faceDetector.process(image)
                     .addOnSuccessListener(faces -> {
                         if (faces.size() > 0) {
-                            // Face detected
                             captureButton.setVisibility(View.VISIBLE);
                             showFeedback("Face detected");
                         } else {
-                            // No face detected
                             captureButton.setVisibility(View.GONE);
                             showFeedback("No face detected");
                         }
                     })
-                    .addOnFailureListener(e -> {
-                        Log.e(TAG, "Face detection failed: " + e.getMessage());
-                    })
+                    .addOnFailureListener(e -> Log.e(TAG, "Face detection failed: " + e.getMessage()))
                     .addOnCompleteListener(task -> imageProxy.close());
         } else {
             imageProxy.close();
         }
     }
 
+    public void onCaptureButtonClick(View view) {
+
+        // mis-clicking prevention, using threshold of 1000 ms
+        if (SystemClock.elapsedRealtime() - mLastClickTime < 3000){
+            return;
+        }
+        mLastClickTime = SystemClock.elapsedRealtime();
+
+        // Add vibration feedback
+        if (vibrator != null) {
+            long[] pattern = {0, 100}; // Wait 0 ms, vibrate for 100 ms
+            vibrator.vibrate(pattern, -1); // -1 means no repeat
+        }
+
+        takePhoto();
+    }
+
     private void takePhoto() {
         if (imageCapture != null) {
-            // Create a file to store the image
-            File photoFile = new File(getExternalFilesDir(null), "captured_image.jpg");
-
             ImageCapture.OutputFileOptions outputOptions =
-                    new ImageCapture.OutputFileOptions.Builder(photoFile).build();
+                    new ImageCapture.OutputFileOptions.Builder(new ByteArrayOutputStream()).build();
 
             imageCapture.takePicture(outputOptions, getExecutor(), new ImageCapture.OnImageSavedCallback() {
                 @Override
                 public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
-                    // Get image data from OutputFileOptions
-                    @SuppressLint("RestrictedApi") byte[] imageData =
-                            ((ByteArrayOutputStream) outputOptions.getOutputStream()).toByteArray();
+                    @SuppressLint("RestrictedApi")
+                    byte[] imageData = ((ByteArrayOutputStream) outputOptions.getOutputStream()).toByteArray();
                     Bitmap bitmap = BitmapFactory.decodeByteArray(imageData, 0, imageData.length);
 
-                    // Display the image
                     runOnUiThread(() -> {
                         capturedImageView.setImageBitmap(bitmap);
                         capturedImageView.setVisibility(View.VISIBLE);
 
-                        // Convert to Base64
                         base64String = compressBitmapToBase64(bitmap);
 
                         File imageFile = saveBitmapToFile(bitmap);
@@ -257,9 +262,11 @@ public class MainActivity extends AppCompatActivity {
 
                 @Override
                 public void onError(@NonNull ImageCaptureException exception) {
-                    runOnUiThread(() -> {
-                        Toast.makeText(MainActivity.this, "Photo capture failed: " + exception.getMessage(), Toast.LENGTH_LONG).show();
-                    });
+                    runOnUiThread(() ->
+                            Toast.makeText(MainActivity.this,
+                                    "Photo capture failed: " + exception.getMessage(),
+                                    Toast.LENGTH_LONG).show()
+                    );
                 }
             });
         }
@@ -273,13 +280,8 @@ public class MainActivity extends AppCompatActivity {
         feedbackTextView.setText(message);
     }
 
-    private String convertImageToBase64(byte[] imageData) {
-        return Base64.encodeToString(imageData, Base64.DEFAULT);
-    }
-
     private String compressBitmapToBase64(Bitmap bitmap) {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        // Compress bitmap to JPEG with 70% quality
         bitmap.compress(Bitmap.CompressFormat.JPEG, 70, byteArrayOutputStream);
         byte[] byteArray = byteArrayOutputStream.toByteArray();
         return Base64.encodeToString(byteArray, Base64.DEFAULT);
@@ -310,13 +312,9 @@ public class MainActivity extends AppCompatActivity {
 
         waitLayout.setVisibility(View.VISIBLE);
 
-        // Create JSON object
         JSONObject jsonObject = prepareJsonData(base64String);
-
-        // Convert JSON to string
         String jsonString = jsonObject.toString();
 
-        // Create OkHttpClient instance
         OkHttpClient.Builder builder = new OkHttpClient.Builder();
         builder.connectTimeout(30, TimeUnit.MINUTES)
                 .writeTimeout(30, TimeUnit.MINUTES)
@@ -325,7 +323,6 @@ public class MainActivity extends AppCompatActivity {
         OkHttpClient client = builder.build();
 
         MediaType JSON = MediaType.get("application/json; charset=utf-8");
-
         RequestBody body = RequestBody.create(jsonString, JSON);
 
         Request request = new Request.Builder()
@@ -361,15 +358,11 @@ public class MainActivity extends AppCompatActivity {
 
                             boolean success = obj.optBoolean("success", false);
                             String modelOutput = obj.optString("model_output", "unknown");
-
-                            // Keep the existing isReal flag logic (used elsewhere)
                             isReal = "real".equalsIgnoreCase(modelOutput);
 
                             StringBuilder sb = new StringBuilder();
                             sb.append(success ? "✅ Success" : "❌ Failed");
                             sb.append("\nModel output: ").append(modelOutput);
-
-                            // Show extra fields if backend includes them
                             if (obj.has("score")) sb.append("\nScore: ").append(obj.optDouble("score"));
                             if (obj.has("confidence")) sb.append("\nConfidence: ").append(obj.optDouble("confidence"));
                             if (obj.has("message")) sb.append("\nMessage: ").append(obj.optString("message"));
@@ -384,13 +377,9 @@ public class MainActivity extends AppCompatActivity {
                     });
 
                 } else {
-                    String errBody = "";
-                    if (response.body() != null) {
-                        errBody = response.body().string();
-                    }
+                    String errBody = response.body() != null ? response.body().string() : "";
+                    Log.e("POST_ERROR", "Response error: " + response.code() + " " + response.message());
                     String finalErrBody = errBody;
-
-                    Log.e("POST_ERROR", "Response error: " + response.message());
 
                     runOnUiThread(() -> {
                         waitLayout.setVisibility(View.GONE);
