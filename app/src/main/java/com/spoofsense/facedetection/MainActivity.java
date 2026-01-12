@@ -1,7 +1,6 @@
 package com.spoofsense.facedetection;
 
 import android.annotation.SuppressLint;
-import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
@@ -25,7 +24,6 @@ import android.widget.Toast;
 import android.Manifest;
 import androidx.annotation.NonNull;
 import androidx.annotation.OptIn;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ExperimentalGetImage;
@@ -54,7 +52,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 import okhttp3.Call;
@@ -68,23 +65,20 @@ import okhttp3.Response;
 public class MainActivity extends AppCompatActivity {
 
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 100;
-    // Updated API details
-    private static final String API_URL = "https://z3jwq0rjyj.execute-api.ap-south-1.amazonaws.com/prod/antispoofing";
+    // UPDATED CREDENTIALS
+    private static final String API_URL = "https://z3jwq0rjyj.execute-api.ap-south-1.amazonaws.com/prod/robust";
     private static final String API_KEY = "Gg7UIgXzG98XRbw8epG7C3NUVlhDfZHV5axdtoEh";
-    private static final String TAG = "MainActivity";
-    boolean isFirstRun = true;
-
-    private TextView feedbackTextView;
+    
     private FaceDetector faceDetector;
     private PreviewView previewView;
     private ImageCapture imageCapture;
     private Button captureButton, btn_check_liveness;
     private ImageView capturedImageView;
     private ConstraintLayout waitLayout, guidelineLayout, mainLayout;
-    String base64String;
-    private boolean isReal = false;
+    private TextView feedbackTextView;
     private Vibrator vibrator;
     private long mLastClickTime = 0;
+    private boolean isFirstRun = true;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,31 +95,25 @@ public class MainActivity extends AppCompatActivity {
         mainLayout = findViewById(R.id.mainLayout);
         guidelineLayout = findViewById(R.id.guidelineLayout);
 
-        // Fixed assignment logic for shared preferences
-        isFirstRun = AppPreferences.getInstance(getApplicationContext()).getBoolean("IS_FIRST_RUN", isFirstRun);
+        isFirstRun = AppPreferences.getInstance(getApplicationContext()).getBoolean("IS_FIRST_RUN", true);
 
-        captureButton.setVisibility(View.GONE);
-        waitLayout.setVisibility(View.GONE);
-
-        if (isFirstRun){
+        if (isFirstRun) {
             guidelineLayout.setVisibility(View.VISIBLE);
             mainLayout.setVisibility(View.GONE);
-        }
-        else{
+        } else {
             mainLayout.setVisibility(View.VISIBLE);
             guidelineLayout.setVisibility(View.GONE);
         }
 
-        btn_check_liveness.setOnClickListener(view -> {
+        btn_check_liveness.setOnClickListener(v -> {
             isFirstRun = false;
-            AppPreferences.getInstance(MainActivity.this).put("IS_FIRST_RUN", isFirstRun);
+            AppPreferences.getInstance(this).put("IS_FIRST_RUN", false);
             guidelineLayout.setVisibility(View.GONE);
             mainLayout.setVisibility(View.VISIBLE);
         });
 
         FaceDetectorOptions options = new FaceDetectorOptions.Builder()
                 .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
-                .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_ALL)
                 .build();
         faceDetector = FaceDetection.getClient(options);
 
@@ -133,35 +121,21 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void checkCameraPermission() {
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
-                != PackageManager.PERMISSION_GRANTED) {
-            requestCameraPermission();
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST_CODE);
         } else {
             startFrontCamera();
         }
     }
 
-    private void requestCameraPermission() {
-        ActivityCompat.requestPermissions(this,
-                new String[]{Manifest.permission.CAMERA},
-                CAMERA_PERMISSION_REQUEST_CODE);
-    }
-
     @OptIn(markerClass = ExperimentalGetImage.class)
     private void startFrontCamera() {
-        final ListenableFuture<ProcessCameraProvider> cameraProviderFuture = ProcessCameraProvider.getInstance(this);
+        ListenableFuture<ProcessCameraProvider> cameraProviderFuture = ProcessCameraProvider.getInstance(this);
         cameraProviderFuture.addListener(() -> {
             try {
                 ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
-
-                CameraSelector cameraSelector = new CameraSelector.Builder()
-                        .requireLensFacing(CameraSelector.LENS_FACING_FRONT)
-                        .build();
-
-                imageCapture = new ImageCapture.Builder()
-                        .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                        .build();
-
+                CameraSelector cameraSelector = new CameraSelector.Builder().requireLensFacing(CameraSelector.LENS_FACING_FRONT).build();
+                imageCapture = new ImageCapture.Builder().setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY).build();
                 Preview preview = new Preview.Builder().build();
                 preview.setSurfaceProvider(previewView.getSurfaceProvider());
 
@@ -174,233 +148,151 @@ public class MainActivity extends AppCompatActivity {
                 cameraProvider.unbindAll();
                 cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture, imageAnalysis);
             } catch (Exception e) {
-                Log.e("CameraX", "Error starting camera", e);
+                Log.e("CameraX", "Error", e);
             }
         }, ContextCompat.getMainExecutor(this));
     }
 
     @ExperimentalGetImage
     private void detectFaces(ImageProxy imageProxy) {
-        @SuppressLint("UnsafeExperimentalUsageError")
         Image mediaImage = imageProxy.getImage();
         if (mediaImage != null) {
             InputImage image = InputImage.fromMediaImage(mediaImage, imageProxy.getImageInfo().getRotationDegrees());
-
             faceDetector.process(image)
                     .addOnSuccessListener(faces -> {
                         if (!faces.isEmpty()) {
-                            Face face = faces.get(0);
-                            Rect boundingBox = face.getBoundingBox();
-                            checkFacePositionAndDistance(boundingBox, imageProxy.getWidth(), imageProxy.getHeight(), boundingBox.width(), boundingBox.height());
+                            Rect box = faces.get(0).getBoundingBox();
+                            checkFacePosition(box, imageProxy.getWidth(), imageProxy.getHeight());
                         } else {
                             feedbackTextView.setText("No face detected");
+                            captureButton.setVisibility(View.GONE);
                         }
                     })
-                    .addOnFailureListener(e -> Log.e("FaceDetection", "Face detection failed", e))
                     .addOnCompleteListener(task -> imageProxy.close());
         }
     }
 
-    private void checkFacePositionAndDistance(Rect faceBoundingBox, int imageWidth, int imageHeight, int faceWidth, int faceHeight) {
-        int faceCenterX = faceBoundingBox.centerX();
-        int faceCenterY = faceBoundingBox.centerY();
+    private void checkFacePosition(Rect box, int w, int h) {
+        int centerX = box.centerX();
+        int centerY = box.centerY();
+        int targetY = (int) (h * 0.35);
+        
+        boolean centered = Math.abs(centerX - (w / 2)) < (w * 0.1) && Math.abs(centerY - targetY) < (h * 0.1);
+        boolean sized = box.width() > 300 && box.width() < 500;
 
-        int ovalCenterX = imageWidth / 2;
-        int ovalCenterY = (int) (imageHeight * 0.35);
-
-        int horizontalMargin = (int) (imageWidth * 0.1);
-        int verticalMargin = (int) (imageHeight * 0.1);
-
-        boolean isCenteredX = faceCenterX > (ovalCenterX - horizontalMargin) && faceCenterX < (ovalCenterX + horizontalMargin);
-        boolean isCenteredY = faceCenterY > (ovalCenterY - verticalMargin) && faceCenterY < (ovalCenterY + verticalMargin);
-
-        int closeThreshold = 500;
-        int farThreshold = 300;
-
-        if (!isCenteredX || !isCenteredY) {
-            showFeedback("Center your face");
-            captureButton.setVisibility(View.GONE);
-        } else if (faceWidth > closeThreshold || faceHeight > closeThreshold) {
-            showFeedback("Move away from the camera");
-            captureButton.setVisibility(View.GONE);
-        } else if (faceWidth < farThreshold || faceHeight < farThreshold) {
-            showFeedback("Move closer to the camera");
-            captureButton.setVisibility(View.GONE);
-        } else {
-            showFeedback("Perfect! Stay still");
+        if (!centered) feedbackTextView.setText("Center your face");
+        else if (box.width() > 500) feedbackTextView.setText("Move away");
+        else if (box.width() < 300) feedbackTextView.setText("Move closer");
+        else {
+            feedbackTextView.setText("Perfect! Stay still");
             captureButton.setVisibility(View.VISIBLE);
+            return;
         }
+        captureButton.setVisibility(View.GONE);
     }
 
     public void onCaptureButtonClick(View view) {
-        if (SystemClock.elapsedRealtime() - mLastClickTime < 3000){
-            return;
-        }
+        if (SystemClock.elapsedRealtime() - mLastClickTime < 3000) return;
         mLastClickTime = SystemClock.elapsedRealtime();
 
         if (vibrator != null) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE));
-            } else {
-                vibrator.vibrate(100);
-            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) vibrator.vibrate(VibrationEffect.createOneShot(100, 255));
+            else vibrator.vibrate(100);
         }
-
         takePhoto();
     }
 
     private void takePhoto() {
-        if (imageCapture != null) {
-            ImageCapture.OutputFileOptions outputOptions = new ImageCapture.OutputFileOptions.Builder(new ByteArrayOutputStream()).build();
+        if (imageCapture == null) return;
+        ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        ImageCapture.OutputFileOptions options = new ImageCapture.OutputFileOptions.Builder(outputStream).build();
 
-            imageCapture.takePicture(outputOptions, ContextCompat.getMainExecutor(this), new ImageCapture.OnImageSavedCallback() {
-                @Override
-                public void onImageSaved(@NonNull ImageCapture.OutputFileResults outputFileResults) {
-                    @SuppressLint("RestrictedApi") byte[] imageData = ((ByteArrayOutputStream) outputOptions.getOutputStream()).toByteArray();
-                    Bitmap bitmap = BitmapFactory.decodeByteArray(imageData, 0, imageData.length);
+        imageCapture.takePicture(options, ContextCompat.getMainExecutor(this), new ImageCapture.OnImageSavedCallback() {
+            @Override
+            public void onImageSaved(@NonNull ImageCapture.OutputFileResults results) {
+                byte[] data = outputStream.toByteArray();
+                Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
+                capturedImageView.setImageBitmap(bitmap);
+                capturedImageView.setVisibility(View.VISIBLE);
+                
+                String base64 = compressToBase64(bitmap);
+                File file = saveBitmap(bitmap);
+                sendPostRequest(base64, Uri.fromFile(file).toString());
+            }
 
-                    runOnUiThread(() -> {
-                        capturedImageView.setImageBitmap(bitmap);
-                        capturedImageView.setVisibility(View.VISIBLE);
-                        base64String = compressBitmapToBase64(bitmap);
-
-                        File imageFile = saveBitmapToFile(bitmap);
-                        Uri imageUri = Uri.fromFile(imageFile);
-
-                        sendPostRequest(base64String, imageUri.toString());
-                    });
-                }
-
-                @Override
-                public void onError(@NonNull ImageCaptureException exception) {
-                    runOnUiThread(() -> Toast.makeText(MainActivity.this,"Photo capture failed: " + exception.getMessage(),Toast.LENGTH_LONG).show());
-                }
-            });
-        }
+            @Override
+            public void onError(@NonNull ImageCaptureException e) {
+                Toast.makeText(MainActivity.this, "Capture failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
-    private void showFeedback(String message) {
-        feedbackTextView.setText(message);
+    private String compressToBase64(Bitmap b) {
+        ByteArrayOutputStream os = new ByteArrayOutputStream();
+        b.compress(Bitmap.CompressFormat.JPEG, 70, os);
+        return Base64.encodeToString(os.toByteArray(), Base64.DEFAULT);
     }
 
-    private String compressBitmapToBase64(Bitmap bitmap) {
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 70, byteArrayOutputStream);
-        byte[] compressedByteArray = byteArrayOutputStream.toByteArray();
-        return Base64.encodeToString(compressedByteArray, Base64.DEFAULT);
+    private File saveBitmap(Bitmap b) {
+        File f = new File(getExternalFilesDir(null), "temp_selfie.jpg");
+        try (FileOutputStream out = new FileOutputStream(f)) {
+            b.compress(Bitmap.CompressFormat.JPEG, 50, out);
+        } catch (IOException e) { e.printStackTrace(); }
+        return f;
     }
 
-    private File saveBitmapToFile(Bitmap bitmap) {
-        File file = new File(getExternalFilesDir(null), "captured_image.jpg");
-        try (FileOutputStream out = new FileOutputStream(file)) {
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 50, out);
-            out.flush();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return file;
-    }
-
-    private JSONObject prepareJsonData(String base64String) {
-        JSONObject jsonObject = new JSONObject();
-        try {
-            jsonObject.put("data", base64String);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-        return jsonObject;
-    }
-
-    @Override
-    protected void onResume() {
-        super.onResume();
-        waitLayout.setVisibility(View.GONE);
-    }
-
-    private void sendPostRequest(String base64String, String imageFileString) {
+    private void sendPostRequest(String base64, String uri) {
         waitLayout.setVisibility(View.VISIBLE);
-        JSONObject jsonObject = prepareJsonData(base64String);
-        String jsonString = jsonObject.toString();
+        OkHttpClient client = new OkHttpClient.Builder().connectTimeout(30, TimeUnit.SECONDS).build();
+        
+        JSONObject json = new JSONObject();
+        try { json.put("data", base64); } catch (JSONException e) { e.printStackTrace(); }
 
-        OkHttpClient client = new OkHttpClient.Builder()
-                .connectTimeout(30, TimeUnit.SECONDS)
-                .writeTimeout(30, TimeUnit.SECONDS)
-                .readTimeout(30, TimeUnit.SECONDS)
-                .build();
-
-        RequestBody requestBody = RequestBody.create(
-                jsonString,
-                MediaType.get("application/json; charset=utf-8")
-        );
-
-        Request request = new Request.Builder()
-                .url(API_URL)
-                .post(requestBody)
-                .addHeader("x-api-key", API_KEY)
-                .addHeader("Content-Type", "application/json")
-                .build();
+        RequestBody body = RequestBody.create(json.toString(), MediaType.get("application/json; charset=utf-8"));
+        Request request = new Request.Builder().url(API_URL).post(body).addHeader("x-api-key", API_KEY).build();
 
         client.newCall(request).enqueue(new Callback() {
             @Override
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 runOnUiThread(() -> {
                     waitLayout.setVisibility(View.GONE);
-                    // Detailed error Toast for debugging
-                    Toast.makeText(MainActivity.this, "Network Error: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    // DEBUG: Pass network error to Result screen
+                    Intent intent = new Intent(MainActivity.this, ResultActivity.class);
+                    intent.putExtra("jsonResponse", "NETWORK ERROR: " + e.getMessage());
+                    intent.putExtra("IS_REAL", false);
+                    intent.putExtra("imageUri", uri);
+                    startActivity(intent);
+                    Toast.makeText(MainActivity.this, "Network error", Toast.LENGTH_SHORT).show();
                 });
             }
 
             @Override
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
-                if (response.isSuccessful()) {
-                    String responseBody = response.body() != null ? response.body().string() : "";
-                    try {
-                        JSONObject jsonResp = new JSONObject(responseBody);
-                        boolean success = jsonResp.optBoolean("success", false);
-                        String modelOutput = jsonResp.optString("model_output", "");
-                        
-                        Intent intent = new Intent(MainActivity.this, ResultActivity.class);
-                        runOnUiThread(() -> {
-                            isReal = modelOutput.equalsIgnoreCase("real");
-                            intent.putExtra("jsonResponse", responseBody);
+                String bodyStr = response.body() != null ? response.body().string() : "No response body";
+                runOnUiThread(() -> {
+                    waitLayout.setVisibility(View.GONE);
+                    Intent intent = new Intent(MainActivity.this, ResultActivity.class);
+                    intent.putExtra("imageUri", uri);
+                    
+                    if (response.isSuccessful()) {
+                        try {
+                            JSONObject respJson = new JSONObject(bodyStr);
+                            boolean isReal = respJson.optString("model_output", "").equalsIgnoreCase("real");
+                            intent.putExtra("jsonResponse", bodyStr);
                             intent.putExtra("IS_REAL", isReal);
-                            intent.putExtra("imageUri", imageFileString);
-                            startActivity(intent);
-                        });
-                    } catch (JSONException e) {
-                        runOnUiThread(() -> {
-                            waitLayout.setVisibility(View.GONE);
-                            Toast.makeText(MainActivity.this, "Parsing Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-                        });
+                        } catch (JSONException e) {
+                            intent.putExtra("jsonResponse", "PARSING ERROR: " + bodyStr);
+                            intent.putExtra("IS_REAL", false);
+                        }
+                    } else {
+                        // DEBUG: Pass API Error (e.g. 403, 500) to Result screen
+                        intent.putExtra("jsonResponse", "API ERROR (" + response.code() + "): " + bodyStr);
+                        intent.putExtra("IS_REAL", false);
+                        Toast.makeText(MainActivity.this, "API error: " + response.code(), Toast.LENGTH_SHORT).show();
                     }
-                } else {
-                    runOnUiThread(() -> {
-                        waitLayout.setVisibility(View.GONE);
-                        // Detailed API error Toast for debugging
-                        Toast.makeText(MainActivity.this, "API Error (" + response.code() + "): " + response.message(), Toast.LENGTH_LONG).show();
-                    });
-                }
+                    startActivity(intent);
+                });
             }
         });
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-                                           @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == CAMERA_PERMISSION_REQUEST_CODE) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startFrontCamera();
-            } else {
-                Toast.makeText(this, "Camera permission denied", Toast.LENGTH_SHORT).show();
-            }
-        }
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-        // Ensuring demo resets for next launch
-        AppPreferences.getInstance().put("IS_FIRST_RUN", true);
     }
 }
