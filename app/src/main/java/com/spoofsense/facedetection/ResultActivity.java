@@ -10,18 +10,20 @@ import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 
 import java.io.FileNotFoundException;
-
+import java.io.InputStream;
 
 public class ResultActivity extends AppCompatActivity {
 
     String jsonResponse, imageUriString;
     boolean isReal;
-    ImageView ivResult,ivCapturedImage;
+    ImageView ivResult, ivCapturedImage;
     TextView tvJsonResult;
     TextView tvResult;
     Button btn_home;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -32,41 +34,37 @@ public class ResultActivity extends AppCompatActivity {
         tvJsonResult = findViewById(R.id.tvJsonResult);
         tvResult = findViewById(R.id.tvResult);
         btn_home = findViewById(R.id.btn_home);
+        
         imageUriString = getIntent().getStringExtra("imageUri");
-
-        // Retrieve the String and boolean from the Intent and display json data
         jsonResponse = getIntent().getStringExtra("jsonResponse");
-        isReal = getIntent().getBooleanExtra("IS_REAL", false);  // default to false if not found
+        isReal = getIntent().getBooleanExtra("IS_REAL", false);
 
-        tvJsonResult.setText(isReal+ ":---" + jsonResponse);
-        if (isReal){
-            ivResult.setVisibility(View.VISIBLE);
-            ivResult.setImageDrawable(getResources().getDrawable(R.drawable.success));
+        tvJsonResult.setText("Real: " + isReal + "\nResponse: " + jsonResponse);
+        
+        ivResult.setVisibility(View.VISIBLE);
+        if (isReal) {
+            ivResult.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.success));
             tvResult.setText("Liveness confirmed");
-        }else{
-            ivResult.setVisibility(View.VISIBLE);
-            ivResult.setImageDrawable(getResources().getDrawable(R.drawable.fail));
-            tvResult.setText("Please try again. Ensure that \n" +
-                    "the selfie is captured with\n" +
-                    " sufficient light.");
+        } else {
+            ivResult.setImageDrawable(ContextCompat.getDrawable(this, R.drawable.fail));
+            tvResult.setText("Please try again. Ensure that \nthe selfie is captured with\nsufficient light.");
         }
 
-        Uri imageUri = Uri.parse(imageUriString);
-        Bitmap bitmap = null;
-        try {
-            bitmap = BitmapFactory.decodeStream(getContentResolver().openInputStream(imageUri));
-        } catch (FileNotFoundException e) {
-            throw new RuntimeException(e);
+        if (imageUriString != null) {
+            Uri imageUri = Uri.parse(imageUriString);
+            try {
+                InputStream inputStream = getContentResolver().openInputStream(imageUri);
+                Bitmap bitmap = BitmapFactory.decodeStream(inputStream);
+                ivCapturedImage.setImageBitmap(bitmap);
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            }
         }
-        ivCapturedImage.setImageBitmap(bitmap);
 
         btn_home.setOnClickListener(this::onHomeButtonClick);
-
     }
 
-    // Button click method with Intent
     private void onHomeButtonClick(View view) {
-        // Use an explicit intent to start a new activity
         Intent intent = new Intent(ResultActivity.this, HomeActivity.class);
         startActivity(intent);
         finishAffinity();
