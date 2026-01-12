@@ -65,14 +65,15 @@ import okhttp3.Response;
 public class MainActivity extends AppCompatActivity {
 
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 100;
-    // UPDATED CREDENTIALS
-    private static final String API_URL = "https://z3jwq0rjyj.execute-api.ap-south-1.amazonaws.com/prod/robust";
-    private static final String API_KEY = "Gg7UIgXzG98XRbw8epG7C3NUVlhDfZHV5axdtoEh";
     
+    // NEW API ENDPOINT AND KEY
+    private static final String API_URL = "https://z3jwq0rjyj.execute-api.ap-south-1.amazonaws.com/prod/antispoofing";
+    private static final String API_KEY = "Gg7UIgXzG98XRbw8epG7C3NUVlhDfZHV5axdtoEh";
+
     private FaceDetector faceDetector;
     private PreviewView previewView;
     private ImageCapture imageCapture;
-    private Button captureButton, btn_check_liveness;
+    private Button captureButton;
     private ImageView capturedImageView;
     private ConstraintLayout waitLayout, guidelineLayout, mainLayout;
     private TextView feedbackTextView;
@@ -87,7 +88,6 @@ public class MainActivity extends AppCompatActivity {
 
         vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
         captureButton = findViewById(R.id.captureButton);
-        btn_check_liveness = findViewById(R.id.btn_check_liveness);
         previewView = findViewById(R.id.previewView);
         feedbackTextView = findViewById(R.id.feedbackTextView);
         capturedImageView = findViewById(R.id.capturedImageView);
@@ -105,7 +105,7 @@ public class MainActivity extends AppCompatActivity {
             guidelineLayout.setVisibility(View.GONE);
         }
 
-        btn_check_liveness.setOnClickListener(v -> {
+        findViewById(R.id.btn_check_liveness).setOnClickListener(v -> {
             isFirstRun = false;
             AppPreferences.getInstance(this).put("IS_FIRST_RUN", false);
             guidelineLayout.setVisibility(View.GONE);
@@ -178,7 +178,6 @@ public class MainActivity extends AppCompatActivity {
         int targetY = (int) (h * 0.35);
         
         boolean centered = Math.abs(centerX - (w / 2)) < (w * 0.1) && Math.abs(centerY - targetY) < (h * 0.1);
-        boolean sized = box.width() > 300 && box.width() < 500;
 
         if (!centered) feedbackTextView.setText("Center your face");
         else if (box.width() > 500) feedbackTextView.setText("Move away");
@@ -212,8 +211,6 @@ public class MainActivity extends AppCompatActivity {
             public void onImageSaved(@NonNull ImageCapture.OutputFileResults results) {
                 byte[] data = outputStream.toByteArray();
                 Bitmap bitmap = BitmapFactory.decodeByteArray(data, 0, data.length);
-                capturedImageView.setImageBitmap(bitmap);
-                capturedImageView.setVisibility(View.VISIBLE);
                 
                 String base64 = compressToBase64(bitmap);
                 File file = saveBitmap(bitmap);
@@ -222,7 +219,7 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onError(@NonNull ImageCaptureException e) {
-                Toast.makeText(MainActivity.this, "Capture failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                Toast.makeText(MainActivity.this, "Capture failed", Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -256,19 +253,18 @@ public class MainActivity extends AppCompatActivity {
             public void onFailure(@NonNull Call call, @NonNull IOException e) {
                 runOnUiThread(() -> {
                     waitLayout.setVisibility(View.GONE);
-                    // DEBUG: Pass network error to Result screen
+                    // Pass network error to result screen for debugging
                     Intent intent = new Intent(MainActivity.this, ResultActivity.class);
-                    intent.putExtra("jsonResponse", "NETWORK ERROR: " + e.getMessage());
+                    intent.putExtra("jsonResponse", "NETWORK FAILURE: " + e.getMessage());
                     intent.putExtra("IS_REAL", false);
                     intent.putExtra("imageUri", uri);
                     startActivity(intent);
-                    Toast.makeText(MainActivity.this, "Network error", Toast.LENGTH_SHORT).show();
                 });
             }
 
             @Override
             public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
-                String bodyStr = response.body() != null ? response.body().string() : "No response body";
+                String bodyStr = response.body() != null ? response.body().string() : "No Body";
                 runOnUiThread(() -> {
                     waitLayout.setVisibility(View.GONE);
                     Intent intent = new Intent(MainActivity.this, ResultActivity.class);
@@ -282,13 +278,10 @@ public class MainActivity extends AppCompatActivity {
                             intent.putExtra("IS_REAL", isReal);
                         } catch (JSONException e) {
                             intent.putExtra("jsonResponse", "PARSING ERROR: " + bodyStr);
-                            intent.putExtra("IS_REAL", false);
                         }
                     } else {
-                        // DEBUG: Pass API Error (e.g. 403, 500) to Result screen
+                        // Pass API error (403, 500, etc) to result screen
                         intent.putExtra("jsonResponse", "API ERROR (" + response.code() + "): " + bodyStr);
-                        intent.putExtra("IS_REAL", false);
-                        Toast.makeText(MainActivity.this, "API error: " + response.code(), Toast.LENGTH_SHORT).show();
                     }
                     startActivity(intent);
                 });
