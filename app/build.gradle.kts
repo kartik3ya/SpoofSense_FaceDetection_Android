@@ -45,6 +45,7 @@
 //        implementation(libs.camera.mlkit.vision)
 //        implementation(libs.camera.extensions)
         implementation(libs.okhttp)
+        implementation(libs.okhttp.logging)
         testImplementation(libs.junit)
         androidTestImplementation(libs.ext.junit)
         androidTestImplementation(libs.espresso.core)

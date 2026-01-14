@@ -37,6 +37,8 @@ import androidx.camera.view.PreviewView;
 import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+
+import com.google.android.datatransport.backend.cct.BuildConfig;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.face.Face;
@@ -62,13 +64,20 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
+import okhttp3.logging.HttpLoggingInterceptor;
 
 public class MainActivity extends AppCompatActivity {
 
 
     private static final int CAMERA_PERMISSION_REQUEST_CODE = 100;
-    private static final String API_URL = "https://690xidqbzi.execute-api.ap-south-1.amazonaws.com/dev/antispoofing";
-    private static final String API_KEY = "0UpOY9TMUq7iE7HvEGmKJaQ0dkkzQ6Er4K1Rm363";
+
+    //PROD
+    private static final String API_URL = "https://z3jwq0rjyj.execute-api.ap-south-1.amazonaws.com/prod/antispoofing";
+    private static final String API_KEY = "Gg7UIgXzG98XRbw8epG7C3NUVlhDfZHV5axdtoEh";
+
+    //DEV
+    //    private static final String API_URL = "https://690xidqbzi.execute-api.ap-south-1.amazonaws.com/dev/antispoofing";
+//    private static final String API_KEY = "0UpOY9TMUq7iE7HvEGmKJaQ0dkkzQ6Er4K1Rm363";
     private static final String TAG = "MainActivity";
     boolean isFirstRun = true;
 
@@ -376,12 +385,18 @@ public class MainActivity extends AppCompatActivity {
         // Convert JSON to string
         String jsonString = jsonObject.toString();
 
+        // Create logger
+        HttpLoggingInterceptor logging = new HttpLoggingInterceptor();
+        logging.setLevel(HttpLoggingInterceptor.Level.BODY);  // Logs headers + body
+
         // Create OkHttpClient instance
         OkHttpClient.Builder builder = new OkHttpClient.Builder();
         builder.connectTimeout(30, TimeUnit.MINUTES) // connect timeout
                 .writeTimeout(30, TimeUnit.MINUTES) // write timeout
                 .readTimeout(30, TimeUnit.MINUTES); // read timeout
-
+        if (BuildConfig.DEBUG) {
+            builder.addInterceptor(logging);
+        }
         OkHttpClient client = builder.build();
 
         // Create request body
@@ -421,12 +436,14 @@ public class MainActivity extends AppCompatActivity {
                         // Extract the "model_output" value
 //                        String modelOutput = jsonObject.getString("model_output");
 //                        Log.d("POST_SUCCESS", "Model Output: " + modelOutput);
-                        boolean success = jsonObject.optBoolean("success", false); // default value is false
-                        String modelOutput = jsonObject.getString("model_output");
+                        boolean success = jsonObject.optBoolean("success", false);
+                        JSONObject modelOutputObj = jsonObject.getJSONObject("model_output"); // Get model_output object
+                        String predIdx = modelOutputObj.getString("pred_idx"); // Get pred_idx
+//                        double probReal = modelOutputObj.optDouble("prob_real", 0); // Optional: get probability
                         Intent intent = new Intent(MainActivity.this, ResultActivity.class);
                         if (success) {
                             runOnUiThread(() -> {
-                                isReal = modelOutput.equalsIgnoreCase("real");
+                                isReal = predIdx.equalsIgnoreCase("real");
                                 intent.putExtra("jsonResponse", responseBody);
                                 intent.putExtra("IS_REAL",isReal);
                                 intent.putExtra("imageUri", imageFileString.toString());
@@ -445,22 +462,22 @@ public class MainActivity extends AppCompatActivity {
                     } catch (JSONException e) {
                         e.printStackTrace();
                         runOnUiThread(() -> {
-                        new AlertDialog.Builder(MainActivity.this)
-                                .setTitle("Error")
-                                .setMessage("" + e.toString())
+                            new AlertDialog.Builder(MainActivity.this)
+                                    .setTitle("Error")
+                                    .setMessage("" + e.toString())
 
-                                // Specifying a listener allows you to take an action before dismissing the dialog.
-                                // The dialog is automatically dismissed when a dialog button is clicked.
-                                .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface dialog, int which) {
-                                        // Continue with delete operation
-                                    }
-                                })
+                                    // Specifying a listener allows you to take an action before dismissing the dialog.
+                                    // The dialog is automatically dismissed when a dialog button is clicked.
+                                    .setPositiveButton(android.R.string.yes, new DialogInterface.OnClickListener() {
+                                        public void onClick(DialogInterface dialog, int which) {
+                                            // Continue with delete operation
+                                        }
+                                    })
 
-                                // A null listener allows the button to dismiss the dialog and take no further action.
-                                .setNegativeButton(android.R.string.no, null)
-                                .setIcon(android.R.drawable.ic_dialog_alert)
-                                .show();
+                                    // A null listener allows the button to dismiss the dialog and take no further action.
+                                    .setNegativeButton(android.R.string.no, null)
+                                    .setIcon(android.R.drawable.ic_dialog_alert)
+                                    .show();
                         });
 //                        runOnUiThread(() -> Toast.makeText(MainActivity.this, "Error parsing response:---" + e, Toast.LENGTH_SHORT).show());
                     }
