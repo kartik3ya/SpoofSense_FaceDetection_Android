@@ -43,7 +43,7 @@ public class HomeActivity extends AppCompatActivity {
     // Button click method with Intent
     private void onCheckLivenessButtonClick(View view) {
         // Use an explicit intent to start a new activity
-        Intent intent = new Intent(HomeActivity.this, MainActivity.class);
+        Intent intent = new Intent(HomeActivity.this, FingerScanAcitivty.class);
         startActivity(intent);
     }
 }
